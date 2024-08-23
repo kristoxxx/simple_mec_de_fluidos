@@ -1,0 +1,196 @@
+<html><head><base href="https://code.jquery.com/"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Simulador Avanzado de Mecánica de Fluidos</title><script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script><style>
+body {
+  font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: #f0f8ff;
+  margin: 0;
+  padding: 20px;
+}
+
+h1 {
+  color: #2c3e50;
+}
+
+#simulationCanvas {
+  border: 2px solid #3498db;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+button {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: background-color 0.3s;
+}
+
+button:hover {
+  background-color: #2980b9;
+}
+
+input[type="range"] {
+  width: 200px;
+}
+
+</style></head><body>
+<h1>Simulador Avanzado de Mecánica de Fluidos</h1>
+<div id="simulationCanvas"></div>
+<div class="controls">
+  <button id="addParticles">Añadir 100 Partículas</button>
+  <button id="clearParticles">Limpiar Partículas</button>
+  <div>
+    <label for="viscosity">Viscosidad:</label>
+    <input type="range" id="viscosity" min="0" max="1" step="0.01" value="0.5">
+  </div>
+  <div>
+    <label for="gravity">Gravedad:</label>
+    <input type="range" id="gravity" min="-1" max="1" step="0.1" value="0.1">
+  </div>
+  <div>
+    <label for="repulsion">Repulsión:</label>
+    <input type="range" id="repulsion" min="0" max="2" step="0.1" value="1">
+  </div>
+</div>
+
+<script>
+let particles = [];
+let viscosity = 0.5;
+let gravity = 0.1;
+let repulsion = 1;
+
+function setup() {
+  const canvas = createCanvas(800, 600);
+  canvas.parent('simulationCanvas');
+  
+  document.getElementById('addParticles').addEventListener('click', addParticles);
+  document.getElementById('clearParticles').addEventListener('click', clearParticles);
+  document.getElementById('viscosity').addEventListener('input', updateViscosity);
+  document.getElementById('gravity').addEventListener('input', updateGravity);
+  document.getElementById('repulsion').addEventListener('input', updateRepulsion);
+  
+  // Iniciar con algunas partículas
+  addParticles();
+}
+
+function draw() {
+  background(240, 248, 255);
+  
+  for (let i = 0; i < particles.length; i++) {
+    particles[i].update();
+    particles[i].display();
+    
+    for (let j = i + 1; j < particles.length; j++) {
+      particles[i].interact(particles[j]);
+    }
+  }
+}
+
+function addParticles() {
+  for (let i = 0; i < 100; i++) {
+    particles.push(new Particle(random(width), random(height)));
+  }
+}
+
+function clearParticles() {
+  particles = [];
+}
+
+function updateViscosity() {
+  viscosity = parseFloat(document.getElementById('viscosity').value);
+}
+
+function updateGravity() {
+  gravity = parseFloat(document.getElementById('gravity').value);
+}
+
+function updateRepulsion() {
+  repulsion = parseFloat(document.getElementById('repulsion').value);
+}
+
+class Particle {
+  constructor(x, y) {
+    this.pos = createVector(x, y);
+    this.vel = createVector(random(-1, 1), random(-1, 1));
+    this.acc = createVector(0, 0);
+    this.radius = random(2, 6);
+    this.mass = this.radius * 0.1;
+    this.color = color(random(100, 255), random(100, 255), random(100, 255), 200);
+  }
+  
+  update() {
+    this.acc.add(0, gravity);
+    this.vel.add(this.acc);
+    this.vel.mult(1 - viscosity * 0.1);
+    this.pos.add(this.vel);
+    
+    if (this.pos.x < this.radius || this.pos.x > width - this.radius) {
+      this.vel.x *= -0.8;
+    }
+    if (this.pos.y < this.radius || this.pos.y > height - this.radius) {
+      this.vel.y *= -0.8;
+    }
+    
+    this.pos.x = constrain(this.pos.x, this.radius, width - this.radius);
+    this.pos.y = constrain(this.pos.y, this.radius, height - this.radius);
+    
+    this.acc.mult(0);
+  }
+  
+  display() {
+    noStroke();
+    fill(this.color);
+    ellipse(this.pos.x, this.pos.y, this.radius * 2);
+  }
+  
+  interact(other) {
+    let force = p5.Vector.sub(this.pos, other.pos);
+    let distance = force.mag();
+    let minDistance = this.radius + other.radius;
+    
+    if (distance < minDistance) {
+      let correction = (minDistance - distance) / 2;
+      let correctionVector = force.copy().setMag(correction);
+      this.pos.add(correctionVector);
+      other.pos.sub(correctionVector);
+      
+      force.normalize();
+      force.mult(repulsion * this.mass * other.mass / (distance * distance));
+      
+      this.applyForce(force);
+      other.applyForce(force.mult(-1));
+    }
+  }
+  
+  applyForce(force) {
+    let f = force.copy().div(this.mass);
+    this.acc.add(f);
+  }
+}
+
+function mouseDragged() {
+  const force = createVector(mouseX - pmouseX, mouseY - pmouseY);
+  force.mult(0.5);
+  
+  for (let particle of particles) {
+    const d = dist(mouseX, mouseY, particle.pos.x, particle.pos.y);
+    if (d < 50) {
+      particle.applyForce(force);
+    }
+  }
+}
+</script>
+</body></html>
